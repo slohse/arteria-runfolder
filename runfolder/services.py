@@ -1,6 +1,7 @@
 import os.path
 import socket
 import logging
+
 from runfolder import __version__ as version
 
 from arteria.web.state import State
@@ -36,6 +37,9 @@ class RunfolderService:
     def __init__(self, configuration_svc, logger=None):
         self._configuration_svc = configuration_svc
         self._logger = logger or logging.getLogger(__name__)
+
+    # constants
+    INCOMING_FOLDER_NAME="incoming"
 
     # NOTE: These methods were added so that they could be easily mocked out.
     #       It would probably be nicer to move them inline and mock the system calls
@@ -219,17 +223,48 @@ class RunfolderService:
         """Enumerates all runfolders in any monitored directory"""
         for monitored_root in self._monitored_directories():
             self._logger.debug("Checking subdirectories of {0}".format(monitored_root))
-            for subdir in self._subdirectories(monitored_root):
+            subdirs = self._subdirectories(monitored_root)
+            if self._incoming_folder() in subdirs:
+                subdirs.remove(self._incoming_folder())
+                subdirs += self._check_incoming(os.path.join(monitored_root, self._incoming_folder()), monitored_root)
+
+            for subdir in subdirs:
                 directory = os.path.join(monitored_root, subdir)
                 self._logger.debug("Found potential runfolder {0}".format(directory))
                 state = self.get_runfolder_state(directory)
                 info = RunfolderInfo(self._host(), directory, state)
                 yield info
 
+    def _check_incoming(self, incoming_folder, destination_folder):
+        ready_folders = []
+        for subdir in self._subdirectories(incoming_folder):
+            candidate_folder = os.path.join(incoming_folder, subdir)
+            completed_marker = os.path.join(candidate_folder, "RTAComplete.txt")
+            ready = self._file_exists(completed_marker)
+            if ready:
+                destination_runfolder = os.path.join(destination_folder, subdir)
+                self._logger.debug("Found potential complete runfolder {0}. Moving to {1}".format(candidate_folder, destination_runfolder))
+                os.rename(candidate_folder, destination_runfolder)
+                ready_folders.append(subdir)
+
+        return ready_folders
+
     def _requires_enabled(self, config_key):
         """Raises an ActionNotEnabled exception if the specified config value is false"""
         if not self._configuration_svc[config_key]:
             raise ActionNotEnabled("The action {0} is not enabled".format(config_key))
+
+    def _incoming_folder(self):
+        incoming_dirname = self.INCOMING_FOLDER_NAME
+        try:
+            config_dirname = self._configuration_svc['incoming_subdirectory']
+            if type(config_dirname) is not str:
+                raise ConfigurationError("incoming_subdirectory must be a string")
+            incoming_dirname = config_dirname
+        except KeyError:
+            pass
+
+        return incoming_dirname
 
 
 class CannotOverrideFile(Exception):
