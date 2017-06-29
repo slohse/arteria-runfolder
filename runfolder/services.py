@@ -32,13 +32,21 @@ class RunfolderInfo:
 
 class RunfolderService:
     """Watches a set of directories on the server and reacts when one of them
-       has a runfolder that's ready for processing"""
+       has a runfolder that's ready for processing
+
+       Optionally the name of a special subdirectory can be set via the `incoming_subdirectory` variable in
+       the configuration file. In abscence of this variable, the default INCOMING_FOLDER_NAME is used.
+       This 'incoming' subdirectory is meant for uploading runfolders. By separating the network-accessible directory
+       where new runfolders are dropped off from those where processing occurs, exposure of sensitive information
+       over the network is reduced.
+    """
 
     def __init__(self, configuration_svc, logger=None):
         self._configuration_svc = configuration_svc
         self._logger = logger or logging.getLogger(__name__)
 
     # constants
+    """Default name of subdirectory for ongoing runfolder uploads"""
     INCOMING_FOLDER_NAME="incoming"
 
     # NOTE: These methods were added so that they could be easily mocked out.
@@ -220,7 +228,13 @@ class RunfolderService:
             return runfolders
 
     def _enumerate_runfolders(self):
-        """Enumerates all runfolders in any monitored directory"""
+        """
+        Enumerates all runfolders in any monitored directory and checks the subdirectory designated for
+        runfolder uploads for completed uploads.
+
+        Upon finding a fully uploaded runfolder in the incoming subfolder, it is moved to the monitored
+        directory.
+        """
         for monitored_root in self._monitored_directories():
             self._logger.debug("Checking subdirectories of {0}".format(monitored_root))
             subdirs = self._subdirectories(monitored_root)
@@ -236,6 +250,13 @@ class RunfolderService:
                 yield info
 
     def _check_incoming(self, incoming_folder, destination_folder):
+        """
+        Checks incoming_folder for runfolders that are ready for processing and moves them to destination_folder
+        :param incoming_folder: folder to check for fully uploaded runfolders
+        :param destination_folder: folder to move runfolders to if the are ready for processing
+        :return: list of runfolders that have been moved. (note: only the names of the runfolders, not their
+         absolute paths)
+        """
         ready_folders = []
         for subdir in self._subdirectories(incoming_folder):
             candidate_folder = os.path.join(incoming_folder, subdir)
