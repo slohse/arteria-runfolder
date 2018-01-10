@@ -36,6 +36,7 @@ class RunfolderService:
     def __init__(self, configuration_svc, logger=None):
         self._configuration_svc = configuration_svc
         self._logger = logger or logging.getLogger(__name__)
+        self._incoming_sanity_check()
 
     # NOTE: These methods were added so that they could be easily mocked out.
     #       It would probably be nicer to move them inline and mock the system calls
@@ -189,7 +190,42 @@ class RunfolderService:
             raise ConfigurationError("monitored_directories must be a list")
 
         for directory in monitored:
-            yield os.path.abspath(directory)
+            if type(directory) is dict:
+                yield os.path.abspath(directory['dir'])
+            else:
+                yield os.path.abspath(directory)
+
+    def _incoming_directories(self):
+        monitored = self._configuration_svc["monitored_directories"]
+
+        if (monitored is not None) and (type(monitored) is not list):
+            raise ConfigurationError("monitored_directories must be a list")
+
+        for directory in monitored:
+            if (type(directory) is dict) and ('incoming' in directory):
+                yield os.path.abspath(directory)
+
+    def _get_processing_directory(self, incoming):
+        for pair in self._incoming_directories():
+            if pair['incoming'] is incoming:
+                return pair['dir']
+
+        raise PathNotMonitored("'{}' does not appear to be a monitored incoming directory ".format(incoming))
+
+    def _incoming_sanity_check(self):
+        for directory in self._incoming_directories():
+            if os.stat(directory['dir']).st_dev != os.stat(directory['incoming']).st_dev:
+                raise ConfigurationError("incoming directory '{inc}' is not on the same filesystem as its corresponding target directory '{dir}'".format(inc = directory['incoming'], dir = directory['dir']))
+
+    def _link_runfolder(self, infolder):
+        """Creates a symlink in the processing folder pointing to a runfolder being uploaded to incoming"""
+        (incoming, run) = os.path.split(os.path.abspath(infolder))
+        runlink = os.path.join(self._get_processing_directory(incoming), run)
+
+        if not os.path.exists(runlink):
+            os.symlink(infolder, runlink)
+            self.set_runfolder_state(runlink, State.LINKED)
+
 
     def next_runfolder(self):
         """Returns the next available runfolder. Returns None if there is none available."""

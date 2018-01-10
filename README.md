@@ -9,11 +9,13 @@ which pops up once the sequencing is finished.
 
 Currently supported states are:
 
-    NONE    -> No RTAComplete.txt file available
-    READY   -> Has found and RTAComplete.txt file
-    STARTED -> Some type of processing is going on of this runfolder
-    DONE    -> Processing has finished
-    ERROR   -> Some problem has been detected
+    INCOMING -> runfolder is being uploaded to the incoming folder
+    LINKED   -> runfolder is being uploaded to incoming folder and is linked to processing folder
+    NONE     -> No RTAComplete.txt file available
+    READY    -> Has found and RTAComplete.txt file
+    STARTED  -> Some type of processing is going on of this runfolder
+    DONE     -> Processing has finished
+    ERROR    -> Some problem has been detected
 
 All states can be set via posting to the API. E.g:
 
