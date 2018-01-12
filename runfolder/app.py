@@ -16,7 +16,8 @@ def start():
         (r"/api/1.0/runfolders/pickup", PickupAvailableRunfolderHandler, args),
         (r"/api/1.0/runfolders/path(/.*)", RunfolderHandler, args),
         (r"/api/1.0/runfolders/test/markasready/path(/.*)", TestFakeSequencerReadyHandler, args),
-        (r"/api/1.0/incoming", ListAvailableIncomingFoldersHandler, args)
+        (r"/api/1.0/incoming", ListAvailableIncomingFoldersHandler, args),
+        (r"/api/1.0/incoming/link(/.*)", LinkIncomingFolderHandler, args)
     ]
     app_svc.start(routes)
 

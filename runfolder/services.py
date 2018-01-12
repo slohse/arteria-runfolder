@@ -196,20 +196,18 @@ class RunfolderService:
                 yield os.path.abspath(directory)
 
     def _incoming_directories(self):
-        self._logger.debug("listing out configured incoming directories")
         monitored = self._configuration_svc["monitored_directories"]
 
         if (monitored is not None) and (type(monitored) is not list):
             raise ConfigurationError("monitored_directories must be a list")
 
         for directory in monitored:
-            self._logger.debug("checking {}".format(directory))
             if (type(directory) is dict) and ('incoming' in directory):
                 yield directory
 
     def _get_processing_directory(self, incoming):
         for pair in self._incoming_directories():
-            if pair['incoming'] is incoming:
+            if pair['incoming'] == incoming:
                 return pair['dir']
 
         raise PathNotMonitored("'{}' does not appear to be a monitored incoming directory ".format(incoming))
@@ -219,7 +217,7 @@ class RunfolderService:
             if os.stat(directory['dir']).st_dev != os.stat(directory['incoming']).st_dev:
                 raise ConfigurationError("incoming directory '{inc}' is not on the same filesystem as its corresponding target directory '{dir}'".format(inc = directory['incoming'], dir = directory['dir']))
 
-    def _link_runfolder(self, infolder):
+    def link_runfolder(self, infolder):
         """Creates a symlink in the processing folder pointing to a runfolder being uploaded to incoming"""
         (incoming, run) = os.path.split(os.path.abspath(infolder))
         runlink = os.path.join(self._get_processing_directory(incoming), run)
@@ -227,7 +225,14 @@ class RunfolderService:
         if not os.path.exists(runlink):
             os.symlink(infolder, runlink)
             self.set_runfolder_state(runlink, State.LINKED)
+        elif os.path.realpath(runlink) != infolder:
+            raise DirectoryAlreadyExists("The path '{linkpath}' already exists and does not point to '{inc}'".format(linkpath = runlink, inc = infolder))
 
+        # if we succeeded in creating the link or it was already present, return the path of the link
+        if os.path.exists(runlink) and os.path.islink(runlink) and os.path.realpath(runlink) == infolder:
+            return runlink
+
+        return None
 
     def next_runfolder(self):
         """Returns the next available runfolder. Returns None if there is none available."""

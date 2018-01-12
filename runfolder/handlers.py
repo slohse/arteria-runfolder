@@ -157,11 +157,11 @@ class TestFakeSequencerReadyHandler(BaseRunfolderHandler):
 
 
 class ListAvailableIncomingFoldersHandler(BaseRunfolderHandler):
-    """Handles listing all available runfolders"""
+    """Handles listing all available incoming runfolders"""
     def get(self):
         """
-        List all runfolders that are ready. Add the query parameter 'state'
-        for filtering. By default, state=READY is assumed. Query for state=* to
+        List all runfolders that are linked. Add the query parameter 'state'
+        for filtering. By default, state=LINKED is assumed. Query for state=* to
         get all monitored runfolders.
         """
         def get_runfolders():
@@ -177,3 +177,13 @@ class ListAvailableIncomingFoldersHandler(BaseRunfolderHandler):
                 raise tornado.web.HTTPError(400, "The state '{}' is not accepted".format(state))
 
         self.write_object({"incoming": [runfolder.__dict__ for runfolder in get_runfolders()]})
+
+class LinkIncomingFolderHandler(BaseRunfolderHandler):
+    """Handles listing all available incoming runfolders"""
+    def get(self, path):
+        try:
+            self.runfolder_svc.link_runfolder(path)
+        except PathNotMonitored:
+            raise tornado.web.HTTPError(400, "Searching an unmonitored path '{0}'".format(path))
+        except DirectoryDoesNotExist:
+            raise tornado.web.HTTPError(404, "Runfolder '{0}' does not exist".format(path))
