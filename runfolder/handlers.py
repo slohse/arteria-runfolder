@@ -155,3 +155,25 @@ class TestFakeSequencerReadyHandler(BaseRunfolderHandler):
         except ActionNotEnabled:
             raise tornado.web.HTTPError(400, "The action is not enabled")
 
+
+class ListAvailableIncomingFoldersHandler(BaseRunfolderHandler):
+    """Handles listing all available runfolders"""
+    def get(self):
+        """
+        List all runfolders that are ready. Add the query parameter 'state'
+        for filtering. By default, state=READY is assumed. Query for state=* to
+        get all monitored runfolders.
+        """
+        def get_runfolders():
+            try:
+                # TODO: This list should be paged. The unfiltered list can be large
+                state = self.get_argument("state", State.LINKED)
+                if state == "*":
+                    state = None
+                for runfolder_info in self.runfolder_svc.list_incoming_folders(state):
+                    self.append_runfolder_link(runfolder_info)
+                    yield runfolder_info
+            except InvalidRunfolderState:
+                raise tornado.web.HTTPError(400, "The state '{}' is not accepted".format(state))
+
+        self.write_object({"incoming": [runfolder.__dict__ for runfolder in get_runfolders()]})

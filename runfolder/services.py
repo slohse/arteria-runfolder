@@ -196,14 +196,16 @@ class RunfolderService:
                 yield os.path.abspath(directory)
 
     def _incoming_directories(self):
+        self._logger.debug("listing out configured incoming directories")
         monitored = self._configuration_svc["monitored_directories"]
 
         if (monitored is not None) and (type(monitored) is not list):
             raise ConfigurationError("monitored_directories must be a list")
 
         for directory in monitored:
+            self._logger.debug("checking {}".format(directory))
             if (type(directory) is dict) and ('incoming' in directory):
-                yield os.path.abspath(directory)
+                yield directory
 
     def _get_processing_directory(self, incoming):
         for pair in self._incoming_directories():
@@ -261,6 +263,29 @@ class RunfolderService:
             for subdir in self._subdirectories(monitored_root):
                 directory = os.path.join(monitored_root, subdir)
                 self._logger.debug("Found potential runfolder {0}".format(directory))
+                state = self.get_runfolder_state(directory)
+                info = RunfolderInfo(self._host(), directory, state)
+                yield info
+
+    def list_incoming_folders(self, state):
+        """
+        Lists all the runfolders on the host, filtered by state. State
+        can be any of the values in RunfolderState. Specify None for no filtering.
+        """
+        runfolders = self._enumerate_incoming_runfolders()
+        if state:
+            validate_state(state)
+            return (runfolder for runfolder in runfolders if runfolder.state == state)
+        else:
+            return runfolders
+
+    def _enumerate_incoming_runfolders(self):
+        """Enumerates all runfolders in any monitored directory"""
+        for monitored_root in self._incoming_directories():
+            self._logger.debug("Checking subdirectories of {0}".format(monitored_root))
+            for subdir in self._subdirectories(monitored_root['incoming']):
+                directory = os.path.join(monitored_root['incoming'], subdir)
+                self._logger.debug("Found potential incoming runfolder {0}".format(directory))
                 state = self.get_runfolder_state(directory)
                 info = RunfolderInfo(self._host(), directory, state)
                 yield info
